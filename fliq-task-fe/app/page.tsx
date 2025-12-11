@@ -58,22 +58,22 @@ export default function Home() {
     return (localeDate.getTime() - date.getTime()) / 60000;
   };
 
-  const formatForDateTimeLocal = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hour = String(date.getHours()).padStart(2, "0");
-    const minute = String(date.getMinutes()).padStart(2, "0");
-    return `${year}-${month}-${day}T${hour}:${minute}`;
-  };
-
-  const convertToDateTimeLocal = (utcDate: Date, timeZone: string): string => {
+  const convertToDateTimeLocal = (date: Date, timeZone: string): string => {
     if (!timeZone) return "";
-    const tzOffset = getTimezoneOffsetMinutes(timeZone, utcDate);
-    const localOffset = utcDate.getTimezoneOffset();
-    const diffMs = (tzOffset - localOffset) * 60000;
-    const localDate = new Date(utcDate.getTime() + diffMs);
-    return formatForDateTimeLocal(localDate);
+    
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(date);
+    
+    const get = (type: string) => parts.find(p => p.type === type)?.value || '';
+    
+    return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
   };
 
   const convertFromDateTimeLocal = (
@@ -82,12 +82,15 @@ export default function Home() {
   ): string => {
     if (!dateTimeLocal || !timeZone) return "";
 
+    // Parse the datetime-local value as if it were in local timezone
     const localDate = new Date(dateTimeLocal);
-    const localOffset = localDate.getTimezoneOffset();
+    
+    // Get the offset difference between target timezone and local timezone
     const tzOffset = getTimezoneOffsetMinutes(timeZone, localDate);
-    const diffMs = (tzOffset - localOffset) * 60000;
-
-    const utcDate = new Date(localDate.getTime() - diffMs);
+    
+    // Adjust to get the correct UTC time
+    // tzOffset = offset_tz - offset_local, so we subtract it to convert to UTC
+    const utcDate = new Date(localDate.getTime() - tzOffset * 60000);
     return utcDate.toISOString();
   };
 
@@ -112,7 +115,6 @@ export default function Home() {
       );
       setDateTime(currentTimeInTz);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTimeZone]);
 
   const formattedDateTime = useMemo(() => {
