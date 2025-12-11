@@ -111,18 +111,19 @@ export default function Home() {
   useEffect(() => {
     if (!timeZones.length) return;
 
-    const preferredTz =
-      (systemTimeZone && timeZones.includes(systemTimeZone) && systemTimeZone) ||
-      selectedTimeZone ||
-      timeZones[0];
+    if (!selectedTimeZone) {
+      const initialTz =
+        (systemTimeZone &&
+          timeZones.includes(systemTimeZone) &&
+          systemTimeZone) ||
+        timeZones[0];
 
-    if (preferredTz !== selectedTimeZone) {
-      setSelectedTimeZone(preferredTz);
+      setSelectedTimeZone(initialTz);
       if (!editingId) {
-        setDateTime(convertToDateTimeLocal(new Date(), preferredTz));
+        setDateTime(convertToDateTimeLocal(new Date(), initialTz));
       }
-    } else if (!dateTime && preferredTz && !editingId) {
-      setDateTime(convertToDateTimeLocal(new Date(), preferredTz));
+    } else if (!dateTime && !editingId) {
+      setDateTime(convertToDateTimeLocal(new Date(), selectedTimeZone));
     }
   }, [timeZones, systemTimeZone, selectedTimeZone, dateTime, editingId]);
 
