@@ -48,7 +48,16 @@ export default function Home() {
     ];
   }, []);
 
-  const [selectedTimeZone, setSelectedTimeZone] = useState<string>("");
+  const systemTimeZone = useMemo<string>(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    } catch {
+      return "";
+    }
+  }, []);
+
+  const [selectedTimeZone, setSelectedTimeZone] =
+    useState<string>(systemTimeZone);
   const [now, setNow] = useState<Date>(() => new Date());
 
   const getTimezoneOffsetMinutes = (timeZone: string, date: Date): number => {
@@ -100,12 +109,22 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!selectedTimeZone && timeZones.length) {
-      const firstTz = timeZones[0];
-      setSelectedTimeZone(firstTz);
-      setDateTime(convertToDateTimeLocal(new Date(), firstTz));
+    if (!timeZones.length) return;
+
+    const preferredTz =
+      (systemTimeZone && timeZones.includes(systemTimeZone) && systemTimeZone) ||
+      selectedTimeZone ||
+      timeZones[0];
+
+    if (preferredTz !== selectedTimeZone) {
+      setSelectedTimeZone(preferredTz);
+      if (!editingId) {
+        setDateTime(convertToDateTimeLocal(new Date(), preferredTz));
+      }
+    } else if (!dateTime && preferredTz && !editingId) {
+      setDateTime(convertToDateTimeLocal(new Date(), preferredTz));
     }
-  }, [timeZones.length]);
+  }, [timeZones, systemTimeZone, selectedTimeZone, dateTime, editingId]);
 
   useEffect(() => {
     if (selectedTimeZone && !editingId) {
