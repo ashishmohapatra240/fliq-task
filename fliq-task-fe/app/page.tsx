@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   useCreatePreference,
   useGetPreference,
@@ -14,6 +14,7 @@ interface Preference {
   email: string;
   phoneNumber: string;
   dateTime: string;
+  timeZone?: string;
 }
 
 export default function Home() {
@@ -28,26 +29,6 @@ export default function Home() {
   const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [dateTime, setDateTime] = useState<string>("");
 
-  const timeZones = useMemo<string[]>(() => {
-    if (
-      typeof Intl !== "undefined" &&
-      typeof Intl.supportedValuesOf === "function"
-    ) {
-      return Intl.supportedValuesOf("timeZone");
-    }
-
-    return [
-      "UTC",
-      "Europe/London",
-      "Europe/Berlin",
-      "Asia/Tokyo",
-      "Asia/Kolkata",
-      "America/New_York",
-      "America/Los_Angeles",
-      "Australia/Sydney",
-    ];
-  }, []);
-
   const systemTimeZone = useMemo<string>(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
@@ -55,6 +36,33 @@ export default function Home() {
       return "";
     }
   }, []);
+
+  const timeZones = useMemo<string[]>(() => {
+    let zones: string[] = [];
+    if (
+      typeof Intl !== "undefined" &&
+      typeof Intl.supportedValuesOf === "function"
+    ) {
+      zones = Intl.supportedValuesOf("timeZone");
+    } else {
+      zones = [
+        "UTC",
+        "Europe/London",
+        "Europe/Berlin",
+        "Asia/Tokyo",
+        "Asia/Kolkata",
+        "America/New_York",
+        "America/Los_Angeles",
+        "Australia/Sydney",
+      ];
+    }
+
+    if (systemTimeZone && !zones.includes(systemTimeZone)) {
+      zones = [systemTimeZone, ...zones];
+    }
+
+    return zones;
+  }, [systemTimeZone]);
 
   const [selectedTimeZone, setSelectedTimeZone] =
     useState<string>(systemTimeZone);
@@ -67,23 +75,29 @@ export default function Home() {
     return (localeDate.getTime() - date.getTime()) / 60000;
   };
 
-  const convertToDateTimeLocal = (date: Date, timeZone: string): string => {
-    if (!timeZone) return "";
-    
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).formatToParts(date);
-    
-    const get = (type: string) => parts.find(p => p.type === type)?.value || '';
-    
-    return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
-  };
+  const convertToDateTimeLocal = useCallback(
+    (date: Date, timeZone: string): string => {
+      if (!timeZone) return "";
+
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(date);
+
+      const get = (type: string) =>
+        parts.find((p) => p.type === type)?.value || "";
+
+      return `${get("year")}-${get("month")}-${get("day")}T${get(
+        "hour"
+      )}:${get("minute")}`;
+    },
+    []
+  );
 
   const convertFromDateTimeLocal = (
     dateTimeLocal: string,
@@ -103,29 +117,49 @@ export default function Home() {
     return utcDate.toISOString();
   };
 
+  const detectUserTimeZone = useCallback((): string => {
+    if (systemTimeZone && timeZones.includes(systemTimeZone)) {
+      return systemTimeZone;
+    }
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const checkDates = [
+      now,
+      new Date(Date.UTC(year, 0, 1, 12, 0, 0)),
+      new Date(Date.UTC(year, 6, 1, 12, 0, 0)),
+    ];
+
+    const matchedZone =
+      timeZones.find((tz) =>
+        checkDates.every((date) => getTimezoneOffsetMinutes(tz, date) === 0)
+      ) || timeZones[0];
+
+    return matchedZone || "";
+  }, [systemTimeZone, timeZones]);
+
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
-    if (!timeZones.length) return;
+    if (!timeZones.length || selectedTimeZone) return;
 
-    if (!selectedTimeZone) {
-      const initialTz =
-        (systemTimeZone &&
-          timeZones.includes(systemTimeZone) &&
-          systemTimeZone) ||
-        timeZones[0];
-
+    const initialTz = detectUserTimeZone();
+    if (initialTz) {
       setSelectedTimeZone(initialTz);
       if (!editingId) {
         setDateTime(convertToDateTimeLocal(new Date(), initialTz));
       }
-    } else if (!dateTime && !editingId) {
-      setDateTime(convertToDateTimeLocal(new Date(), selectedTimeZone));
     }
-  }, [timeZones, systemTimeZone, selectedTimeZone, dateTime, editingId]);
+  }, [
+    timeZones,
+    selectedTimeZone,
+    detectUserTimeZone,
+    editingId,
+    convertToDateTimeLocal,
+  ]);
 
   useEffect(() => {
     if (selectedTimeZone && !editingId) {
@@ -135,7 +169,7 @@ export default function Home() {
       );
       setDateTime(currentTimeInTz);
     }
-  }, [selectedTimeZone]);
+  }, [selectedTimeZone, editingId, convertToDateTimeLocal]);
 
   const formattedDateTime = useMemo(() => {
     if (!selectedTimeZone) return "";
@@ -165,8 +199,11 @@ export default function Home() {
     setEmail(preference.email);
     setPhoneNumber(preference.phoneNumber);
     const prefDate = new Date(preference.dateTime);
-    if (selectedTimeZone) {
-      setDateTime(convertToDateTimeLocal(prefDate, selectedTimeZone));
+    const zoneForEdit =
+      preference.timeZone || selectedTimeZone || detectUserTimeZone();
+    if (zoneForEdit) {
+      setSelectedTimeZone(zoneForEdit);
+      setDateTime(convertToDateTimeLocal(prefDate, zoneForEdit));
     }
     setEditingId(preference.id);
   };
@@ -174,8 +211,10 @@ export default function Home() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const isoDateTime = selectedTimeZone
-      ? convertFromDateTimeLocal(dateTime, selectedTimeZone)
+    const effectiveTimeZone = selectedTimeZone || detectUserTimeZone();
+
+    const isoDateTime = effectiveTimeZone
+      ? convertFromDateTimeLocal(dateTime, effectiveTimeZone)
       : new Date(dateTime).toISOString();
 
     const formData = {
@@ -183,6 +222,7 @@ export default function Home() {
       email,
       phoneNumber,
       dateTime: isoDateTime,
+      timeZone: effectiveTimeZone,
     };
 
     if (editingId) {
@@ -315,7 +355,19 @@ export default function Home() {
                     </p>
                     <p className="text-sm text-gray-600">
                       <span className="font-medium">Date/Time:</span>{" "}
-                      {new Date(preference.dateTime).toLocaleString()}
+                      {preference.timeZone ? (
+                        new Intl.DateTimeFormat("en-US", {
+                          dateStyle: "full",
+                          timeStyle: "long",
+                          timeZone: preference.timeZone,
+                        }).format(new Date(preference.dateTime))
+                      ) : (
+                        new Date(preference.dateTime).toLocaleString()
+                      )}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Time Zone:</span>{" "}
+                      {preference.timeZone || "Not provided"}
                     </p>
                   </div>
                   <div className="flex gap-2">
