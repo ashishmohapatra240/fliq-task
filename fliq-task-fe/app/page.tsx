@@ -17,6 +17,17 @@ interface Preference {
   timeZone?: string;
 }
 
+const FALLBACK_TIMEZONES = [
+  "UTC",
+  "Europe/London",
+  "Europe/Berlin",
+  "Asia/Tokyo",
+  "Asia/Kolkata",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Australia/Sydney",
+];
+
 export default function Home() {
   const { mutate: createPreference } = useCreatePreference();
   const { mutate: updatePreference } = useUpdatePreference();
@@ -28,6 +39,8 @@ export default function Home() {
   const [email, setEmail] = useState<string>("");
   const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [dateTime, setDateTime] = useState<string>("");
+  const [ipTimeZone, setIpTimeZone] = useState<string>("");
+  const [ipTzError, setIpTzError] = useState<string | null>(null);
 
   const systemTimeZone = useMemo<string>(() => {
     try {
@@ -38,31 +51,20 @@ export default function Home() {
   }, []);
 
   const timeZones = useMemo<string[]>(() => {
-    let zones: string[] = [];
-    if (
+    const base =
       typeof Intl !== "undefined" &&
       typeof Intl.supportedValuesOf === "function"
-    ) {
-      zones = Intl.supportedValuesOf("timeZone");
-    } else {
-      zones = [
-        "UTC",
-        "Europe/London",
-        "Europe/Berlin",
-        "Asia/Tokyo",
-        "Asia/Kolkata",
-        "America/New_York",
-        "America/Los_Angeles",
-        "Australia/Sydney",
-      ];
-    }
+        ? Intl.supportedValuesOf("timeZone")
+        : FALLBACK_TIMEZONES;
 
-    if (systemTimeZone && !zones.includes(systemTimeZone)) {
-      zones = [systemTimeZone, ...zones];
-    }
+    const ordered = [
+      ipTimeZone,
+      systemTimeZone,
+      ...base.filter(Boolean),
+    ].filter(Boolean);
 
-    return zones;
-  }, [systemTimeZone]);
+    return Array.from(new Set(ordered));
+  }, [systemTimeZone, ipTimeZone]);
 
   const [selectedTimeZone, setSelectedTimeZone] =
     useState<string>(systemTimeZone);
@@ -105,19 +107,17 @@ export default function Home() {
   ): string => {
     if (!dateTimeLocal || !timeZone) return "";
 
-    // Parse the datetime-local value as if it were in local timezone
     const localDate = new Date(dateTimeLocal);
-    
-    // Get the offset difference between target timezone and local timezone
     const tzOffset = getTimezoneOffsetMinutes(timeZone, localDate);
-    
-    // Adjust to get the correct UTC time
-    // tzOffset = offset_tz - offset_local, so we subtract it to convert to UTC
     const utcDate = new Date(localDate.getTime() - tzOffset * 60000);
     return utcDate.toISOString();
   };
 
   const detectUserTimeZone = useCallback((): string => {
+    if (ipTimeZone && timeZones.includes(ipTimeZone)) {
+      return ipTimeZone;
+    }
+
     if (systemTimeZone && timeZones.includes(systemTimeZone)) {
       return systemTimeZone;
     }
@@ -136,7 +136,30 @@ export default function Home() {
       ) || timeZones[0];
 
     return matchedZone || "";
-  }, [systemTimeZone, timeZones]);
+  }, [ipTimeZone, systemTimeZone, timeZones]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchIpTimeZone = async () => {
+      try {
+        const response = await fetch("https://ipapi.co/timezone/");
+        if (!response.ok) throw new Error("Failed to fetch IP timezone");
+        const tzText = (await response.text()).trim();
+        if (!cancelled && tzText) {
+          setIpTimeZone(tzText);
+          setIpTzError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setIpTzError("Could not detect timezone from IP");
+        }
+      }
+    };
+    fetchIpTimeZone();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
