@@ -256,7 +256,7 @@ export default function Home() {
       email,
       phoneNumber,
       dateTime: isoDateTime,
-      timeZone: effectiveTimeZone,
+      // timeZone: effectiveTimeZone,
     };
 
     if (editingId) {
@@ -399,10 +399,10 @@ export default function Home() {
                         new Date(preference.dateTime).toLocaleString()
                       )}
                     </p>
-                    <p className="text-sm text-gray-600">
+                    {/* <p className="text-sm text-gray-600">
                       <span className="font-medium">Time Zone:</span>{" "}
                       {preference.timeZone || "Not provided"}
-                    </p>
+                    </p> */}
                   </div>
                   <div className="flex gap-2">
                     <button
