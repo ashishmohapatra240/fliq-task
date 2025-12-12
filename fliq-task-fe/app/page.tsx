@@ -83,7 +83,6 @@ export default function Home() {
       // Get the UTC time components
       const utcTime = date.getTime();
       
-      // Format this UTC time in the target timezone to get local time components
       const tzFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: timeZone,
         hour: '2-digit',
@@ -133,6 +132,7 @@ export default function Home() {
           currentUTCTime: new Date().toISOString()
         });
         
+        // Get the time in the selected timezone
         const timeInSelectedTz = date.toLocaleString('sv-SE', {
           timeZone: timeZone,
           year: 'numeric',
@@ -144,8 +144,40 @@ export default function Home() {
 
         console.log("Time in selected timezone:", timeInSelectedTz);
         
+        // The datetime-local input interprets values in the browser's local timezone
+        // So we need to convert: what time in the browser's local timezone represents
+        // the same moment as this time in the selected timezone?
+        
+        // Step 1: Parse the time components from the selected timezone
         const [datePart, timePart] = timeInSelectedTz.split(' ');
-        const result = `${datePart}T${timePart}`;
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hours, minutes] = timePart.split(':').map(Number);
+        
+        // Step 2: Find the UTC time that would display as this time in the selected timezone
+        const utcCandidate = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
+        const targetOffsetMinutes = getTimezoneOffsetMinutes(timeZone, utcCandidate);
+        const actualUtcTime = utcCandidate.getTime() - (targetOffsetMinutes * 60000);
+        const actualUtcDate = new Date(actualUtcTime);
+        
+        // Step 3: Convert this UTC time to the browser's local timezone
+        const localTimeString = actualUtcDate.toLocaleString('sv-SE', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        console.log("Conversion:", {
+          timeInSelectedTz,
+          targetOffsetMinutes,
+          actualUtcTime: actualUtcDate.toISOString(),
+          localTimeString
+        });
+        
+        // Format for datetime-local input (this is now in browser's local timezone)
+        const [localDatePart, localTimePart] = localTimeString.split(' ');
+        const result = `${localDatePart}T${localTimePart}`;
         
         console.log("convertToDateTimeLocal result:", result);
         return result;
@@ -171,19 +203,16 @@ export default function Home() {
       const [year, month, day] = datePart.split('-').map(Number);
       const [hours, minutes] = timePart.split(':').map(Number);
       
-      const utcCandidate = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
+      // The datetime-local input value is now in the browser's local timezone
+      // (because we converted it in convertToDateTimeLocal to show the equivalent local time)
+      // So we interpret it as local time and convert directly to UTC
+      const localDate = new Date(year, month - 1, day, hours, minutes, 0);
+      // getTimezoneOffset() returns offset in minutes (positive means behind UTC)
+      // So to convert to UTC, we subtract the offset
+      const adjustedDate = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000));
       
-      // Now we need to find what UTC time produces this display in the target timezone
-      // Calculate the offset of the target timezone for a date around this time
-      const targetOffsetMinutes = getTimezoneOffsetMinutes(timeZone, utcCandidate);
-      
-      // Adjust: if we want 19:19 in Tokyo (UTC+9), the UTC time should be 10:19
-      // Offset is positive (540 minutes for UTC+9), so we subtract
-      const adjustedUtcTime = utcCandidate.getTime() - (targetOffsetMinutes * 60000);
-      let adjustedDate = new Date(adjustedUtcTime);
-      
-      // Verify the conversion by formatting back to the target timezone
-      const formatted = adjustedDate.toLocaleString('sv-SE', {
+      // Verify the conversion by formatting back to the selected timezone
+      const formattedInSelectedTz = adjustedDate.toLocaleString('sv-SE', {
         timeZone: timeZone,
         year: 'numeric',
         month: '2-digit',
@@ -196,11 +225,9 @@ export default function Home() {
       console.log("Conversion result:", {
         original: dateTimeLocal,
         timezone: timeZone,
-        targetOffsetMinutes,
-        utcCandidate: utcCandidate.toISOString(),
+        localDate: localDate.toISOString(),
         result: adjustedDate.toISOString(),
-        verification: formatted,
-        matches: formatted === dateTimeLocal.slice(0, 16)
+        formattedInSelectedTz: formattedInSelectedTz
       });
       
       return adjustedDate.toISOString();
