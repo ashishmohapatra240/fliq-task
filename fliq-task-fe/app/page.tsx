@@ -39,20 +39,8 @@ export default function Home() {
   const [email, setEmail] = useState<string>("");
   const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [dateTime, setDateTime] = useState<string>(() => {
-    try {
-      const systemTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-      return new Date().toLocaleString("sv-SE", {
-        timeZone: systemTz,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }).replace(" ", "T");
-    } catch {
-      return new Date().toISOString().slice(0, 16);
-    }
+    const systemTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    return new Date().toISOString().slice(0, 16);
   });
   const [ipTimeZone, setIpTimeZone] = useState<string>("");
   const [ipTzError, setIpTzError] = useState<string | null>(null);
@@ -96,7 +84,13 @@ export default function Home() {
     (date: Date, timeZone: string): string => {
       if (!timeZone) return "";
 
-      const parts = new Intl.DateTimeFormat("en-CA", {
+      // Get the time in the selected timezone, then format as datetime-local
+      // datetime-local interprets the value in browser's local timezone
+      // So we need to show the equivalent time in browser timezone
+      const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+      // Format the date for the selected timezone
+      const selectedTzTime = new Intl.DateTimeFormat("en-CA", {
         timeZone,
         year: "numeric",
         month: "2-digit",
@@ -104,14 +98,18 @@ export default function Home() {
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
-      }).formatToParts(date);
+      }).format(date);
 
-      const get = (type: string) =>
-        parts.find((p) => p.type === type)?.value || "";
+      // Parse the selected timezone time and convert to browser timezone
+      const [datePart, timePart] = selectedTzTime.split("T");
+      const [year, month, day] = datePart.split("-").map(Number);
+      const [hour, minute] = timePart.split(":").map(Number);
 
-      return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get(
-        "minute"
-      )}`;
+      const selectedDate = new Date(year, month - 1, day, hour, minute);
+      const tzOffset = getTimezoneOffsetMinutes(timeZone, selectedDate) - getTimezoneOffsetMinutes(browserTz, selectedDate);
+      const browserDate = new Date(selectedDate.getTime() + tzOffset * 60000);
+
+      return browserDate.toISOString().slice(0, 16);
     },
     []
   );
@@ -122,75 +120,28 @@ export default function Home() {
   ): string => {
     if (!dateTimeLocal || !timeZone) return "";
 
-    const [datePart, timePart] = dateTimeLocal.split("T");
-    if (!datePart || !timePart) return "";
-
-    const dateParts = datePart.split("-").map(Number);
-    const timeParts = timePart.split(":").map(Number);
-
-    if (dateParts.length !== 3 || timeParts.length < 2) return "";
-    if (dateParts.some(isNaN) || timeParts.some(isNaN)) return "";
-
-    const [year, month, day] = dateParts;
-    const [hour, minute] = timeParts;
-
-    if (
-      year < 1900 ||
-      year > 2100 ||
-      month < 1 ||
-      month > 12 ||
-      day < 1 ||
-      day > 31 ||
-      hour < 0 ||
-      hour > 23 ||
-      minute < 0 ||
-      minute > 59
-    ) {
-      return "";
-    }
-
-    const formatter = new Intl.DateTimeFormat("en-CA", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-
-    let candidateUTC;
     try {
-      candidateUTC = new Date(Date.UTC(year, month - 1, day, hour, minute));
+      // The datetime-local value represents time in browser timezone
+      // But it corresponds to the desired time in selected timezone
+      // So we need to interpret it as selected timezone time, then convert to UTC
+
+      const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const browserDate = new Date(dateTimeLocal);
+
+      if (isNaN(browserDate.getTime())) return "";
+
+      // Get offset difference between browser and selected timezone
+      const browserOffset = getTimezoneOffsetMinutes(browserTz, browserDate);
+      const selectedOffset = getTimezoneOffsetMinutes(timeZone, browserDate);
+      const offsetDiff = selectedOffset - browserOffset;
+
+      // Convert from browser time to selected timezone time
+      const selectedDate = new Date(browserDate.getTime() - offsetDiff * 60000);
+
+      return selectedDate.toISOString();
     } catch {
       return "";
     }
-
-    for (let i = 0; i < 5; i++) {
-      const formatted = formatter.format(candidateUTC);
-      const parts = formatted.split(/[-T:]/).map(Number);
-
-      if (
-        parts[0] === year &&
-        parts[1] === month &&
-        parts[2] === day &&
-        parts[3] === hour &&
-        parts[4] === minute
-      ) {
-        return candidateUTC.toISOString();
-      }
-
-      const targetTime = new Date(Date.UTC(year, month - 1, day, hour, minute));
-      const formattedTime = new Date(
-        Date.UTC(parts[0], parts[1] - 1, parts[2], parts[3], parts[4])
-      );
-      const diffMs = targetTime.getTime() - formattedTime.getTime();
-      candidateUTC = new Date(candidateUTC.getTime() + diffMs);
-
-      if (Math.abs(diffMs) < 60000) break;
-    }
-
-    return candidateUTC.toISOString();
   };
 
   const detectUserTimeZone = useCallback((): string => {
