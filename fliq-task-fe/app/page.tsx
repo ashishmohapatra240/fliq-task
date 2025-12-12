@@ -38,7 +38,22 @@ export default function Home() {
   const [name, setName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [phoneNumber, setPhoneNumber] = useState<string>("");
-  const [dateTime, setDateTime] = useState<string>("");
+  const [dateTime, setDateTime] = useState<string>(() => {
+    try {
+      const systemTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      return new Date().toLocaleString("sv-SE", {
+        timeZone: systemTz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).replace(" ", "T");
+    } catch {
+      return new Date().toISOString().slice(0, 16);
+    }
+  });
   const [ipTimeZone, setIpTimeZone] = useState<string>("");
   const [ipTzError, setIpTzError] = useState<string | null>(null);
 
@@ -110,8 +125,29 @@ export default function Home() {
     const [datePart, timePart] = dateTimeLocal.split("T");
     if (!datePart || !timePart) return "";
 
-    const [year, month, day] = datePart.split("-").map(Number);
-    const [hour, minute] = timePart.split(":").map(Number);
+    const dateParts = datePart.split("-").map(Number);
+    const timeParts = timePart.split(":").map(Number);
+
+    if (dateParts.length !== 3 || timeParts.length < 2) return "";
+    if (dateParts.some(isNaN) || timeParts.some(isNaN)) return "";
+
+    const [year, month, day] = dateParts;
+    const [hour, minute] = timeParts;
+
+    if (
+      year < 1900 ||
+      year > 2100 ||
+      month < 1 ||
+      month > 12 ||
+      day < 1 ||
+      day > 31 ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59
+    ) {
+      return "";
+    }
 
     const formatter = new Intl.DateTimeFormat("en-CA", {
       timeZone,
@@ -123,7 +159,12 @@ export default function Home() {
       hour12: false,
     });
 
-    let candidateUTC = new Date(Date.UTC(year, month - 1, day, hour, minute));
+    let candidateUTC;
+    try {
+      candidateUTC = new Date(Date.UTC(year, month - 1, day, hour, minute));
+    } catch {
+      return "";
+    }
 
     for (let i = 0; i < 5; i++) {
       const formatted = formatter.format(candidateUTC);
@@ -278,9 +319,20 @@ export default function Home() {
     // Use selected timezone or fallback to system timezone
     const effectiveTimeZone = selectedTimeZone || systemTimeZone || "UTC";
 
-    const isoDateTime = effectiveTimeZone
-      ? convertFromDateTimeLocal(dateTime, effectiveTimeZone)
-      : new Date(dateTime).toISOString();
+    let isoDateTime = "";
+    if (effectiveTimeZone) {
+      isoDateTime = convertFromDateTimeLocal(dateTime, effectiveTimeZone);
+    }
+
+    // Fallback if conversion failed
+    if (!isoDateTime) {
+      try {
+        isoDateTime = new Date(dateTime).toISOString();
+      } catch {
+        alert("Invalid date/time format. Please select a valid date and time.");
+        return;
+      }
+    }
 
     const formData = {
       name,
