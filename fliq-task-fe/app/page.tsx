@@ -288,11 +288,26 @@ export default function Home() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const effectiveTimeZone = selectedTimeZone || detectUserTimeZone();
+    if (!dateTime) {
+      alert("Please choose a date and time before submitting.");
+      return;
+    }
 
-    const isoDateTime = effectiveTimeZone
-      ? convertFromDateTimeLocal(dateTime, effectiveTimeZone)
-      : new Date(dateTime).toISOString();
+    const effectiveTimeZone =
+      selectedTimeZone || ipTimeZone || systemTimeZone || detectUserTimeZone();
+
+    if (!effectiveTimeZone) {
+      alert("Could not determine a timezone. Please select one.");
+      return;
+    }
+
+    let isoDateTime = "";
+    try {
+      isoDateTime = convertFromDateTimeLocal(dateTime, effectiveTimeZone);
+    } catch {
+      alert("Invalid date/time value. Please re-enter.");
+      return;
+    }
 
     const formData = {
       name,
