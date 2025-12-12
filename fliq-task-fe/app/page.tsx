@@ -66,7 +66,8 @@ export default function Home() {
     return Array.from(new Set(ordered));
   }, [systemTimeZone, ipTimeZone]);
 
-  const [selectedTimeZone, setSelectedTimeZone] = useState<string>("");
+  const [selectedTimeZone, setSelectedTimeZone] =
+    useState<string>(systemTimeZone);
   const [now, setNow] = useState<Date>(() => new Date());
 
   const getTimezoneOffsetMinutes = (timeZone: string, date: Date): number => {
@@ -206,6 +207,7 @@ export default function Home() {
     if (!ipTimeZone || editingId) return;
     if (selectedTimeZone === ipTimeZone) return;
 
+    // Auto-select IP timezone when it loads
     setSelectedTimeZone(ipTimeZone);
     if (!editingId) {
       setDateTime(convertToDateTimeLocal(new Date(), ipTimeZone));
@@ -217,27 +219,7 @@ export default function Home() {
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    if (!timeZones.length || selectedTimeZone || editingId) return;
-
-    // Fallback: if IP timezone not available yet, use system timezone or detect
-    const initialTz = ipTimeZone || systemTimeZone || detectUserTimeZone();
-    if (initialTz) {
-      setSelectedTimeZone(initialTz);
-      if (!editingId) {
-        setDateTime(convertToDateTimeLocal(new Date(), initialTz));
-      }
-    }
-  }, [
-    timeZones,
-    selectedTimeZone,
-    ipTimeZone,
-    systemTimeZone,
-    detectUserTimeZone,
-    editingId,
-    convertToDateTimeLocal,
-  ]);
-
+  // Initialize datetime when timezone changes and not editing
   useEffect(() => {
     if (selectedTimeZone && !editingId) {
       const currentTimeInTz = convertToDateTimeLocal(
@@ -288,26 +270,17 @@ export default function Home() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!dateTime) {
-      alert("Please choose a date and time before submitting.");
+    if (!name || !email || !phoneNumber || !dateTime) {
+      alert("Please fill in all required fields.");
       return;
     }
 
-    const effectiveTimeZone =
-      selectedTimeZone || ipTimeZone || systemTimeZone || detectUserTimeZone();
+    // Use selected timezone or fallback to system timezone
+    const effectiveTimeZone = selectedTimeZone || systemTimeZone || "UTC";
 
-    if (!effectiveTimeZone) {
-      alert("Could not determine a timezone. Please select one.");
-      return;
-    }
-
-    let isoDateTime = "";
-    try {
-      isoDateTime = convertFromDateTimeLocal(dateTime, effectiveTimeZone);
-    } catch {
-      alert("Invalid date/time value. Please re-enter.");
-      return;
-    }
+    const isoDateTime = effectiveTimeZone
+      ? convertFromDateTimeLocal(dateTime, effectiveTimeZone)
+      : new Date(dateTime).toISOString();
 
     const formData = {
       name,
