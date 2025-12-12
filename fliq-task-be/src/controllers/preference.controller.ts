@@ -1,8 +1,9 @@
 import { type Request, type Response } from "express";
 
 import crypto from "crypto";
-import { createPreferenceSchema } from "../types/preference.type.js";
+import { createPreferenceSchema, updatePreferenceSchema } from "../types/preference.type.js";
 import db from "../db/db.js";
+import type { Preference } from "../db/db.js";
 
 export const createPreference = (req: Request, res: Response) => {
   try {
@@ -12,11 +13,15 @@ export const createPreference = (req: Request, res: Response) => {
 
     const id = crypto.randomUUID();
 
-    db.preferences.push({ id, name, email, dateTime, phoneNumber, timeZone });
+    const preference: Preference = { id, name, email, dateTime, phoneNumber };
+    if (timeZone) {
+      preference.timeZone = timeZone;
+    }
+    db.preferences.push(preference);
 
     res.status(201).json({
       message: "Preference created successfully",
-      preference: { id, name, email, dateTime, phoneNumber, timeZone },
+      preference: preference,
     });
   } catch (error) {
     res.status(500).json({ message: "Internal server error", error: error });
@@ -42,17 +47,13 @@ export const updatePreference = (req: Request, res: Response) => {
       return res.status(404).json({ message: "Preference not found" });
     }
 
-    const { name, email, dateTime, phoneNumber, timeZone } = createPreferenceSchema.parse(
-      req.body
-    );
+    const parsed = updatePreferenceSchema.parse(req.body);
 
-    preference.name = name;
-    preference.email = email;
-    preference.dateTime = dateTime;
-    preference.phoneNumber = phoneNumber;
-    if (timeZone !== undefined) {
-      preference.timeZone = timeZone;
-    }
+    if (parsed.name !== undefined) preference.name = parsed.name;
+    if (parsed.email !== undefined) preference.email = parsed.email;
+    if (parsed.dateTime !== undefined) preference.dateTime = parsed.dateTime;
+    if (parsed.phoneNumber !== undefined) preference.phoneNumber = parsed.phoneNumber;
+    if (parsed.timeZone !== undefined) preference.timeZone = parsed.timeZone;
     res
       .status(200)
       .json({

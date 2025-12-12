@@ -1,4 +1,13 @@
-const db = {
+export interface Preference {
+  id: string;
+  name: string;
+  email: string;
+  dateTime: string;
+  phoneNumber: string;
+  timeZone?: string;
+}
+
+const db: { preferences: Preference[] } = {
   preferences: [
     {
       id: "1",
