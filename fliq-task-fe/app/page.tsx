@@ -66,8 +66,7 @@ export default function Home() {
     return Array.from(new Set(ordered));
   }, [systemTimeZone, ipTimeZone]);
 
-  const [selectedTimeZone, setSelectedTimeZone] =
-    useState<string>(systemTimeZone);
+  const [selectedTimeZone, setSelectedTimeZone] = useState<string>("");
   const [now, setNow] = useState<Date>(() => new Date());
 
   const getTimezoneOffsetMinutes = (timeZone: string, date: Date): number => {
@@ -94,9 +93,9 @@ export default function Home() {
       const get = (type: string) =>
         parts.find((p) => p.type === type)?.value || "";
 
-      return `${get("year")}-${get("month")}-${get("day")}T${get(
-        "hour"
-      )}:${get("minute")}`;
+      return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get(
+        "minute"
+      )}`;
     },
     []
   );
@@ -107,10 +106,49 @@ export default function Home() {
   ): string => {
     if (!dateTimeLocal || !timeZone) return "";
 
-    const localDate = new Date(dateTimeLocal);
-    const tzOffset = getTimezoneOffsetMinutes(timeZone, localDate);
-    const utcDate = new Date(localDate.getTime() - tzOffset * 60000);
-    return utcDate.toISOString();
+    const [datePart, timePart] = dateTimeLocal.split("T");
+    if (!datePart || !timePart) return "";
+
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hour, minute] = timePart.split(":").map(Number);
+
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+    let candidateUTC = new Date(Date.UTC(year, month - 1, day, hour, minute));
+
+    for (let i = 0; i < 5; i++) {
+      const formatted = formatter.format(candidateUTC);
+      const parts = formatted.split(/[-T:]/).map(Number);
+
+      if (
+        parts[0] === year &&
+        parts[1] === month &&
+        parts[2] === day &&
+        parts[3] === hour &&
+        parts[4] === minute
+      ) {
+        return candidateUTC.toISOString();
+      }
+
+      const targetTime = new Date(Date.UTC(year, month - 1, day, hour, minute));
+      const formattedTime = new Date(
+        Date.UTC(parts[0], parts[1] - 1, parts[2], parts[3], parts[4])
+      );
+      const diffMs = targetTime.getTime() - formattedTime.getTime();
+      candidateUTC = new Date(candidateUTC.getTime() + diffMs);
+
+      if (Math.abs(diffMs) < 60000) break;
+    }
+
+    return candidateUTC.toISOString();
   };
 
   const detectUserTimeZone = useCallback((): string => {
@@ -169,7 +207,9 @@ export default function Home() {
     if (selectedTimeZone === ipTimeZone) return;
 
     setSelectedTimeZone(ipTimeZone);
-    setDateTime(convertToDateTimeLocal(new Date(), ipTimeZone));
+    if (!editingId) {
+      setDateTime(convertToDateTimeLocal(new Date(), ipTimeZone));
+    }
   }, [ipTimeZone, editingId, selectedTimeZone, convertToDateTimeLocal]);
 
   useEffect(() => {
@@ -178,9 +218,10 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!timeZones.length || selectedTimeZone) return;
+    if (!timeZones.length || selectedTimeZone || editingId) return;
 
-    const initialTz = detectUserTimeZone();
+    // Fallback: if IP timezone not available yet, use system timezone or detect
+    const initialTz = ipTimeZone || systemTimeZone || detectUserTimeZone();
     if (initialTz) {
       setSelectedTimeZone(initialTz);
       if (!editingId) {
@@ -190,6 +231,8 @@ export default function Home() {
   }, [
     timeZones,
     selectedTimeZone,
+    ipTimeZone,
+    systemTimeZone,
     detectUserTimeZone,
     editingId,
     convertToDateTimeLocal,
@@ -389,15 +432,13 @@ export default function Home() {
                     </p>
                     <p className="text-sm text-gray-600">
                       <span className="font-medium">Date/Time:</span>{" "}
-                      {preference.timeZone ? (
-                        new Intl.DateTimeFormat("en-US", {
-                          dateStyle: "full",
-                          timeStyle: "long",
-                          timeZone: preference.timeZone,
-                        }).format(new Date(preference.dateTime))
-                      ) : (
-                        new Date(preference.dateTime).toLocaleString()
-                      )}
+                      {preference.timeZone
+                        ? new Intl.DateTimeFormat("en-US", {
+                            dateStyle: "full",
+                            timeStyle: "long",
+                            timeZone: preference.timeZone,
+                          }).format(new Date(preference.dateTime))
+                        : new Date(preference.dateTime).toLocaleString()}
                     </p>
                     {/* <p className="text-sm text-gray-600">
                       <span className="font-medium">Time Zone:</span>{" "}
