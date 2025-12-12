@@ -198,20 +198,14 @@ export default function Home() {
     try {
       console.log("Converting datetime-local to ISO:", { dateTimeLocal, timeZone });
       
-      // Parse the datetime-local value (format: "YYYY-MM-DDTHH:mm")
       const [datePart, timePart] = dateTimeLocal.split('T');
       const [year, month, day] = datePart.split('-').map(Number);
       const [hours, minutes] = timePart.split(':').map(Number);
       
-      // The datetime-local input value is now in the browser's local timezone
-      // (because we converted it in convertToDateTimeLocal to show the equivalent local time)
-      // So we interpret it as local time and convert directly to UTC
+     
       const localDate = new Date(year, month - 1, day, hours, minutes, 0);
-      // getTimezoneOffset() returns offset in minutes (positive means behind UTC)
-      // So to convert to UTC, we subtract the offset
-      const adjustedDate = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000));
+      const adjustedDate = localDate;
       
-      // Verify the conversion by formatting back to the selected timezone
       const formattedInSelectedTz = adjustedDate.toLocaleString('sv-SE', {
         timeZone: timeZone,
         year: 'numeric',
