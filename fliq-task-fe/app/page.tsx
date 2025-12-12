@@ -463,13 +463,13 @@ export default function Home() {
               </div>
             )}
 
-            <input
+            {/* <input
               type="datetime-local"
               className="border-2 border-gray-300 rounded-md p-2 focus:outline-none focus:border-neutral-300"
               value={dateTime}
               onChange={(e) => setDateTime(e.target.value)}
               required
-            />
+            /> */}
             <div className="flex gap-2">
               <button
                 type="submit"
