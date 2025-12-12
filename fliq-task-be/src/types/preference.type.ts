@@ -5,6 +5,7 @@ export const createPreferenceSchema = z.object({
   email: z.email(),
   dateTime: z.string(),
   phoneNumber: z.string().min(1),
+  timeZone: z.string().optional(),
 });
 
 export type CreatePreferenceType = z.infer<typeof createPreferenceSchema>;
@@ -15,6 +16,7 @@ export const updatePreferenceSchema = z
     email: z.email(),
     dateTime: z.string(),
     phoneNumber: z.string().min(1),
+    timeZone: z.string().optional(),
   })
   .partial();
 

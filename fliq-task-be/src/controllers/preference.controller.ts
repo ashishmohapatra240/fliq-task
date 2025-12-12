@@ -6,17 +6,17 @@ import db from "../db/db.js";
 
 export const createPreference = (req: Request, res: Response) => {
   try {
-    const { name, email, dateTime, phoneNumber } = createPreferenceSchema.parse(
+    const { name, email, dateTime, phoneNumber, timeZone } = createPreferenceSchema.parse(
       req.body
     );
 
     const id = crypto.randomUUID();
 
-    db.preferences.push({ id, name, email, dateTime, phoneNumber });
+    db.preferences.push({ id, name, email, dateTime, phoneNumber, timeZone });
 
     res.status(201).json({
       message: "Preference created successfully",
-      preference: { id, name, email, dateTime, phoneNumber },
+      preference: { id, name, email, dateTime, phoneNumber, timeZone },
     });
   } catch (error) {
     res.status(500).json({ message: "Internal server error", error: error });
@@ -42,7 +42,7 @@ export const updatePreference = (req: Request, res: Response) => {
       return res.status(404).json({ message: "Preference not found" });
     }
 
-    const { name, email, dateTime, phoneNumber } = createPreferenceSchema.parse(
+    const { name, email, dateTime, phoneNumber, timeZone } = createPreferenceSchema.parse(
       req.body
     );
 
@@ -50,6 +50,9 @@ export const updatePreference = (req: Request, res: Response) => {
     preference.email = email;
     preference.dateTime = dateTime;
     preference.phoneNumber = phoneNumber;
+    if (timeZone !== undefined) {
+      preference.timeZone = timeZone;
+    }
     res
       .status(200)
       .json({

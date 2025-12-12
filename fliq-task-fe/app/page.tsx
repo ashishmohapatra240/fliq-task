@@ -380,7 +380,7 @@ export default function Home() {
       email,
       phoneNumber,
       dateTime: isoDateTime,
-      // timeZone: effectiveTimeZone,
+      timeZone: effectiveTimeZone,
     };
 
     if (editingId) {
