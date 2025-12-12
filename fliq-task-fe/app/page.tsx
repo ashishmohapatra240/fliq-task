@@ -142,7 +142,10 @@ export default function Home() {
     let cancelled = false;
     const fetchIpTimeZone = async () => {
       try {
-        const response = await fetch("https://ipapi.co/timezone/");
+        const response = await fetch("https://ipapi.co/timezone", {
+          headers: { Accept: "text/plain" },
+          cache: "no-store",
+        });
         if (!response.ok) throw new Error("Failed to fetch IP timezone");
         const tzText = (await response.text()).trim();
         if (!cancelled && tzText) {
@@ -160,6 +163,14 @@ export default function Home() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!ipTimeZone || editingId) return;
+    if (selectedTimeZone === ipTimeZone) return;
+
+    setSelectedTimeZone(ipTimeZone);
+    setDateTime(convertToDateTimeLocal(new Date(), ipTimeZone));
+  }, [ipTimeZone, editingId, selectedTimeZone, convertToDateTimeLocal]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
