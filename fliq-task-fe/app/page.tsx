@@ -44,11 +44,15 @@ export default function Home() {
   });
   const [ipTimeZone, setIpTimeZone] = useState<string>("");
   const [ipTzError, setIpTzError] = useState<string | null>(null);
+  const [userSelectedTimezone, setUserSelectedTimezone] = useState<boolean>(false);
 
   const systemTimeZone = useMemo<string>(() => {
     try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      console.log("System timezone detected:", tz);
+      return tz;
     } catch {
+      console.log("Could not detect system timezone, using UTC");
       return "UTC";
     }
   }, []);
@@ -66,7 +70,9 @@ export default function Home() {
       ...base.filter(Boolean),
     ].filter(Boolean);
 
-    return Array.from(new Set(ordered));
+    const uniqueZones = Array.from(new Set(ordered));
+    console.log("Timezones array created:", { ipTimeZone, systemTimeZone, total: uniqueZones.length });
+    return uniqueZones;
   }, [systemTimeZone, ipTimeZone]);
 
   const [selectedTimeZone, setSelectedTimeZone] = useState<string>(systemTimeZone);
@@ -88,9 +94,24 @@ export default function Home() {
       if (!timeZone) return "";
 
       try {
-        return date.toISOString().slice(0, 16);
+        // For datetime-local input, we need to show the date/time that represents
+        // the current time in the selected timezone, but in the format expected by datetime-local
+        // datetime-local expects the value to be in the user's local timezone
+        const now = new Date();
+        const timeInTz = now.toLocaleString('sv-SE', {
+          timeZone: timeZone,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        // Convert back to a format suitable for datetime-local
+        const [datePart, timePart] = timeInTz.split(' ');
+        return `${datePart}T${timePart}`;
       } catch {
-        return "";
+        return date.toISOString().slice(0, 16);
       }
     },
     []
@@ -169,14 +190,16 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!ipTimeZone || editingId) return;
+    console.log("IP timezone effect triggered:", { ipTimeZone, editingId, userSelectedTimezone, selectedTimeZone });
+    if (!ipTimeZone || editingId || userSelectedTimezone) return;
     if (selectedTimeZone === ipTimeZone) return;
 
+    console.log("Setting timezone to IP-detected timezone:", ipTimeZone);
     setSelectedTimeZone(ipTimeZone);
     if (!editingId) {
       setDateTime(convertToDateTimeLocal(new Date(), ipTimeZone));
     }
-  }, [ipTimeZone, editingId, selectedTimeZone, convertToDateTimeLocal]);
+  }, [ipTimeZone, editingId, userSelectedTimezone, selectedTimeZone, convertToDateTimeLocal]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -315,10 +338,12 @@ export default function Home() {
             />
             <select
               className="border-2 border-gray-300 rounded-md p-2 focus:outline-none focus:border-neutral-200"
-              value={selectedTimeZone}
+              value={selectedTimeZone || ""}
               onChange={(e) => {
                 const newTz = e.target.value;
+                console.log("User manually selected timezone:", newTz);
                 setSelectedTimeZone(newTz);
+                setUserSelectedTimezone(true);
 
                 if (newTz && !editingId) {
                   setDateTime(convertToDateTimeLocal(new Date(), newTz));
@@ -326,7 +351,7 @@ export default function Home() {
               }}
               required
             >
-              {timeZones.map((timeZone) => (
+              {Array.isArray(timeZones) && timeZones.map((timeZone) => (
                 <option key={timeZone} value={timeZone}>
                   {timeZone}
                 </option>

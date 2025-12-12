@@ -1,7 +1,7 @@
 import axios from "axios";
 
 export const axiosInstance = axios.create({
-  baseURL: "https://api.fliq-task.ashishmohapatra.in",
+  baseURL: "http://localhost:4001",
   withCredentials: true,
   timeout: 30000,
 });

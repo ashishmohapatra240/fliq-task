@@ -9,6 +9,7 @@ app.use(bodyParser.json());
 app.use(
   cors({
     origin: [
+      "http://localhost:3000",
       "fliq-task.ashishmohapatra.in",
       "https://fliq-task.ashishmohapatra.in",
     ],
