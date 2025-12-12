@@ -69,14 +69,8 @@ export default function Home() {
     return Array.from(new Set(ordered));
   }, [systemTimeZone, ipTimeZone]);
 
-  const [selectedTimeZone, setSelectedTimeZone] = useState<string>("UTC");
+  const [selectedTimeZone, setSelectedTimeZone] = useState<string>(systemTimeZone);
   const [now, setNow] = useState<Date>(() => new Date());
-
-  useEffect(() => {
-    if (timeZones.length > 0 && !timeZones.includes(selectedTimeZone)) {
-      setSelectedTimeZone(timeZones[0]);
-    }
-  }, [timeZones, selectedTimeZone]);
 
   const getTimezoneOffsetMinutes = (timeZone: string, date: Date): number => {
     try {
@@ -177,27 +171,18 @@ export default function Home() {
   useEffect(() => {
     if (!ipTimeZone || editingId) return;
     if (selectedTimeZone === ipTimeZone) return;
-    if (!timeZones.includes(ipTimeZone)) return;
 
-    // Auto-select IP timezone when it loads
     setSelectedTimeZone(ipTimeZone);
     if (!editingId) {
       setDateTime(convertToDateTimeLocal(new Date(), ipTimeZone));
     }
-  }, [
-    ipTimeZone,
-    editingId,
-    selectedTimeZone,
-    convertToDateTimeLocal,
-    timeZones,
-  ]);
+  }, [ipTimeZone, editingId, selectedTimeZone, convertToDateTimeLocal]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // Initialize datetime when timezone changes and not editing
   useEffect(() => {
     if (selectedTimeZone && !editingId) {
       const currentTimeInTz = convertToDateTimeLocal(
