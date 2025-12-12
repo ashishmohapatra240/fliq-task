@@ -80,10 +80,43 @@ export default function Home() {
 
   const getTimezoneOffsetMinutes = (timeZone: string, date: Date): number => {
     try {
-      const localeDate = new Date(
-        date.toLocaleString("en-US", { timeZone, hour12: false })
-      );
-      return (localeDate.getTime() - date.getTime()) / 60000;
+      // Get the UTC time components
+      const utcTime = date.getTime();
+      
+      // Format this UTC time in the target timezone to get local time components
+      const tzFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timeZone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      
+      const utcFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'UTC',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      
+      // Format both
+      const tzParts = tzFormatter.formatToParts(date);
+      const utcParts = utcFormatter.formatToParts(date);
+      
+      const tzHour = parseInt(tzParts.find(p => p.type === 'hour')?.value || '0');
+      const tzMinute = parseInt(tzParts.find(p => p.type === 'minute')?.value || '0');
+      const utcHour = parseInt(utcParts.find(p => p.type === 'hour')?.value || '0');
+      const utcMinute = parseInt(utcParts.find(p => p.type === 'minute')?.value || '0');
+      
+      // Calculate the difference in minutes
+      const tzTotalMinutes = tzHour * 60 + tzMinute;
+      const utcTotalMinutes = utcHour * 60 + utcMinute;
+      let offsetMinutes = tzTotalMinutes - utcTotalMinutes;
+      
+      // Handle day boundaries (if difference is more than 12 hours, it wrapped around)
+      if (offsetMinutes > 720) offsetMinutes -= 1440;
+      if (offsetMinutes < -720) offsetMinutes += 1440;
+      
+      return offsetMinutes;
     } catch {
       return 0;
     }
@@ -124,14 +157,60 @@ export default function Home() {
     if (!dateTimeLocal || !timeZone) return "";
 
     try {
-      const localDate = new Date(dateTimeLocal);
-
-      if (isNaN(localDate.getTime())) return "";
-
-      const tzOffset = getTimezoneOffsetMinutes(timeZone, localDate);
-      const utcDate = new Date(localDate.getTime() - tzOffset * 60000);
-
-      return utcDate.toISOString();
+      console.log("Converting datetime-local to ISO:", { dateTimeLocal, timeZone });
+      
+      // Parse the datetime-local value (format: "YYYY-MM-DDTHH:mm")
+      const [datePart, timePart] = dateTimeLocal.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hours, minutes] = timePart.split(':').map(Number);
+      
+      // Create a date string that we'll interpret as being in the target timezone
+      // We need to convert this local time (in the selected timezone) to UTC
+      
+      // The datetime-local value represents a time in the SELECTED timezone (not browser's local timezone)
+      // We need to convert this to UTC
+      
+      // The datetime-local value represents a time in the SELECTED timezone
+      // We need to find the UTC time that, when displayed in the target timezone, matches this
+      
+      // Approach: Use Intl.DateTimeFormat to work backwards
+      // We'll try different UTC times until we find one that formats correctly
+      
+      // Create a starting point - assume this is roughly around the right time
+      // Create a date in UTC first (treating the input as if it were UTC)
+      const utcCandidate = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
+      
+      // Now we need to find what UTC time produces this display in the target timezone
+      // Calculate the offset of the target timezone for a date around this time
+      const targetOffsetMinutes = getTimezoneOffsetMinutes(timeZone, utcCandidate);
+      
+      // Adjust: if we want 19:19 in Tokyo (UTC+9), the UTC time should be 10:19
+      // Offset is positive (540 minutes for UTC+9), so we subtract
+      const adjustedUtcTime = utcCandidate.getTime() - (targetOffsetMinutes * 60000);
+      let adjustedDate = new Date(adjustedUtcTime);
+      
+      // Verify the conversion by formatting back to the target timezone
+      const formatted = adjustedDate.toLocaleString('sv-SE', {
+        timeZone: timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).replace(' ', 'T');
+      
+      console.log("Conversion result:", {
+        original: dateTimeLocal,
+        timezone: timeZone,
+        targetOffsetMinutes,
+        utcCandidate: utcCandidate.toISOString(),
+        result: adjustedDate.toISOString(),
+        verification: formatted,
+        matches: formatted === dateTimeLocal.slice(0, 16)
+      });
+      
+      return adjustedDate.toISOString();
     } catch (error) {
       console.error("Error converting datetime:", error);
       return "";
