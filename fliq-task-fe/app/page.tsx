@@ -127,11 +127,13 @@ export default function Home() {
       if (!timeZone) return "";
 
       try {
-        // For datetime-local input, we need to show the date/time that represents
-        // the current time in the selected timezone, but in the format expected by datetime-local
-        // datetime-local expects the value to be in the user's local timezone
-        const now = new Date();
-        const timeInTz = now.toLocaleString('sv-SE', {
+        console.log("convertToDateTimeLocal called:", { 
+          date: date.toISOString(), 
+          timeZone,
+          currentUTCTime: new Date().toISOString()
+        });
+        
+        const timeInSelectedTz = date.toLocaleString('sv-SE', {
           timeZone: timeZone,
           year: 'numeric',
           month: '2-digit',
@@ -140,10 +142,15 @@ export default function Home() {
           minute: '2-digit'
         });
 
-        // Convert back to a format suitable for datetime-local
-        const [datePart, timePart] = timeInTz.split(' ');
-        return `${datePart}T${timePart}`;
-      } catch {
+        console.log("Time in selected timezone:", timeInSelectedTz);
+        
+        const [datePart, timePart] = timeInSelectedTz.split(' ');
+        const result = `${datePart}T${timePart}`;
+        
+        console.log("convertToDateTimeLocal result:", result);
+        return result;
+      } catch (error) {
+        console.error("Error in convertToDateTimeLocal:", error);
         return date.toISOString().slice(0, 16);
       }
     },
@@ -164,20 +171,6 @@ export default function Home() {
       const [year, month, day] = datePart.split('-').map(Number);
       const [hours, minutes] = timePart.split(':').map(Number);
       
-      // Create a date string that we'll interpret as being in the target timezone
-      // We need to convert this local time (in the selected timezone) to UTC
-      
-      // The datetime-local value represents a time in the SELECTED timezone (not browser's local timezone)
-      // We need to convert this to UTC
-      
-      // The datetime-local value represents a time in the SELECTED timezone
-      // We need to find the UTC time that, when displayed in the target timezone, matches this
-      
-      // Approach: Use Intl.DateTimeFormat to work backwards
-      // We'll try different UTC times until we find one that formats correctly
-      
-      // Create a starting point - assume this is roughly around the right time
-      // Create a date in UTC first (treating the input as if it were UTC)
       const utcCandidate = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
       
       // Now we need to find what UTC time produces this display in the target timezone
@@ -287,10 +280,12 @@ export default function Home() {
 
   useEffect(() => {
     if (selectedTimeZone && !editingId) {
+      console.log("Updating datetime for selected timezone:", selectedTimeZone);
       const currentTimeInTz = convertToDateTimeLocal(
         new Date(),
         selectedTimeZone
       );
+      console.log("Setting datetime to:", currentTimeInTz);
       setDateTime(currentTimeInTz);
     }
   }, [selectedTimeZone, editingId, convertToDateTimeLocal]);
@@ -425,7 +420,11 @@ export default function Home() {
                 setUserSelectedTimezone(true);
 
                 if (newTz && !editingId) {
-                  setDateTime(convertToDateTimeLocal(new Date(), newTz));
+                  const currentTime = new Date();
+                  console.log("Current UTC time:", currentTime.toISOString());
+                  const localTimeValue = convertToDateTimeLocal(currentTime, newTz);
+                  console.log("Setting datetime-local value to:", localTimeValue);
+                  setDateTime(localTimeValue);
                 }
               }}
               required
